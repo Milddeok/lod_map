@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>게임 맵 에디터</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            margin: 10px 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: var(--dark-color);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            padding: 8px 16px;
+            border: 2px solid white;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--dark-color);
+        }
+
+        .stats {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .editor-container {
+            display: flex;
+            min-height: 70vh;
+        }
+
+        .map-section {
+            flex: 2;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .controls-section {
+            flex: 1;
+            min-width: 350px;
+            background: white;
+            padding: 20px;
+            border-left: 1px solid #eee;
+            overflow-y: auto;
+        }
+
+        .map-container {
+            position: relative;
+            display: inline-block;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: #fff;
+            max-width: 100%;
+        }
+
+        .map-image {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            display: block;
+            user-select: none;
+        }
+
+        .npc-marker {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(45deg, #ff4444, #ff6666);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            cursor: move;
+            z-index: 10;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .npc-marker::before {
+            content: '👤';
+            font-size: 12px;
+        }
+
+        .npc-marker:hover {
+            transform: scale(1.2);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            background: linear-gradient(45deg, #ff6666, #ff8888);
+        }
+
+        .npc-marker.dragging {
+            z-index: 100;
+            transform: scale(1.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .npc-marker.selected {
+            border-color: #00ff00;
+            background: linear-gradient(45deg, #00aa00, #00cc00);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .marker-label {
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .npc-marker:hover .marker-label {
+            opacity: 1;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+        }
+
+        .control-group h3 {
+            margin: 0 0 15px 0;
+            color: var(--dark-color);
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-row {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        input[type="text"], input[type="file"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: #212529;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .marker-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .marker-item {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        .marker-item:hover {
+            background: #f8f9fa;
+        }
+
+        .marker-item.selected {
+            background: #e7f3ff;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .marker-item:last-child {
+            border-bottom: none;
+        }
+
+        .marker-info {
+            flex: 1;
+        }
+
+        .marker-name {
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 4px;
+        }
+
+        .marker-items {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .export-area {
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .code-output {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow: auto;
+            margin-top: 15px;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: var(--success-color);
+        }
+
+        .notification.error {
+            background: var(--danger-color);
+        }
+
+        .github-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #24292e;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            z-index: 1000;
+            transition: transform 0.3s;
+        }
+
+        .github-banner:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .editor-container {
+                flex-direction: column;
+            }
+
+            .controls-section {
+                min-width: auto;
+                border-left: none;
+                border-top: 1px solid #eee;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state img {
+            width: 100px;
+            opacity: 0.3;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--info-color));
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ 게임 맵 에디터</h1>
+        <p>드래그 앤 드롭으로 NPC 위치를 설정하고 wiki.js용 HTML 코드를 생성하세요</p>
+    </div>
+
+    <div class="container">
+        <div class="toolbar">
+            <div class="mode-toggle">
+                <button class="mode-btn active" onclick="setMode('edit')">✏️ 편집 모드</button>
+                <button class="mode-btn" onclick="setMode('preview')">👁️ 미리보기</button>
+            </div>
+            <div class="stats">
+                마커 개수: <span id="markerCount">0</span>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="map-section">
+                <div class="map-container" id="mapContainer">
+                    <img src="https://via.placeholder.com/800x600/4CAF50/white?text=🗺️+이미지를+업로드하세요" 
+                         alt="게임 맵" class="map-image" id="mapImage">
+                </div>
+                
+                <div id="emptyState" class="empty-state">
+                    <div style="font-size: 3rem;">🎮</div>
+                    <h3>게임 맵을 시작해보세요!</h3>
+                    <p>오른쪽에서 맵 이미지를 업로드하고 NPC를 추가해보세요.</p>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div class="control-group">
+                    <h3>📁 맵 이미지</h3>
+                    <div class="form-row">
+                        <label>이미지 파일 업로드:</label>
+                        <input type="file" id="imageUpload" accept="image/*">
+                        <div class="progress-bar" id="uploadProgress" style="display: none;">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>또는 이미지 URL:</label>
+                        <input type="text" id="imageUrl" placeholder="https://example.com/map.png">
+                        <button class="btn btn-secondary btn-sm" onclick="loadImageFromUrl()">URL로 로드</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>➕ NPC 추가</h3>
+                    <div class="form-row">
+                        <label>NPC 이름:</label>
+                        <input type="text" id="npcName" placeholder="예: 무기상인 존">
+                    </div>
+                    <div class="form-row">
+                        <label>NPC 타입:</label>
+                        <select id="npcType">
+                            <option value="merchant">상인</option>
+                            <option value="quest">퀘스트 제공자</option>
+                            <option value="trainer">훈련사</option>
+                            <option value="guard">경비병</option>
+                            <option value="other">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>판매/제공 아이템 (쉼표로 구분):</label>
+                        <input type="text" id="npcItems" placeholder="예: 철검,강철검,마법검">
+                    </div>
+                    <div class="form-row">
+                        <label>설명:</label>
+                        <textarea id="npcDescription" placeholder="NPC에 대한 간단한 설명을 입력하세요"></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="addNPC()">✨ NPC 추가</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>📋 NPC 목록</h3>
+                    <div class="marker-list" id="markerList">
+                        <div class="empty-state" id="emptyMarkerList">
+                            <div style="font-size: 2rem;">👥</div>
+                            <p>아직 추가된 NPC가 없습니다</p>
+                        </div>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteSelected()">🗑️ 선택 삭제</button>
+                        <button class="btn btn-warning btn-sm" onclick="clearAll()">🧹 전체 삭제</button>
+                        <button class="btn btn-secondary btn-sm" onclick="saveProject()">💾 저장</button>
+                        <button class="btn btn-secondary btn-sm" onclick="loadProject()">📂 불러오기</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>⚡ 빠른 액션</h3>
+                    <div class="quick-actions">
+                        <button class="btn btn-primary" onclick="exportCode()">📄 HTML 생성</button>
+                        <button class="btn btn-primary" onclick="exportWikiJS()">📝 Wiki.js 형식</button>
+                        <button class="btn btn-secondary" onclick="exportJSON()">📊 JSON 내보내기</button>
+                    </div>
+                </div>
+
+                <div class="export-area" id="exportArea" style="display: none;">
+                    <div style="padding: 20px;">
+                        <h4>생성된 코드</h4>
+                        <div class="code-output" id="codeOutput">
+                            <button class="copy-btn" onclick="copyToClipboard()">📋 복사</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="https://github.com" class="github-banner" target="_blank">
+        ⭐ GitHub에서 보기
+    </a>
+
+    <input type="file" id="projectLoader" accept=".json" style="display: none;">
+
+    <script>
+        let markers = [];
+        let selectedMarker = null;
+        let draggedMarker = null;
+        let dragOffset = { x: 0, y: 0 };
+        let currentMode = 'edit';
+        
+        // 알림 표시 함수
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+        
+        // 마커 개수 업데이트
+        function updateMarkerCount() {
+            document.getElementById('markerCount').textContent = markers.length;
+        }
+        
+        // 이미지 업로드 처리
+        document.getElementById('imageUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const progress = document.getElementById('uploadProgress');
+                progress.style.display = 'block';
+                
+                const reader = new FileReader();
+                reader.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percentLoaded = Math.round((e.loaded / e.total) * 100);
+                        progress.querySelector('.progress-fill').style.width = percentLoaded + '%';
+                    }
+                };
+                
+                reader.onload = function(e) {
+                    document.getElementById('mapImage').src = e.target.result;
+                    progress.style.display = 'none';
+                    showNotification('이미지가 업로드되었습니다!');
+                    document.getElementById('emptyState').style.display = 'none';
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // URL로 이미지 로드
+        function loadImageFromUrl() {
+            const url = document.getElementById('imageUrl').value.trim();
+            if (url) {
+                document.getElementById('mapImage').src = url;
+                document.getElementById('emptyState').style.display = 'none';
+                showNotification('이미지가 로드되었습니다!');
+            }
+        }
+        
+        // 모드 전환
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const markers = document.querySelectorAll('.npc-marker');
+            if (mode === 'preview') {
+                markers.forEach(marker => {
+                    marker.style.cursor = 'pointer';
+                });
+                showNotification('미리보기 모드로 전환되었습니다', 'info');
+            } else {
+                markers.forEach(marker => {
+                    marker.style.cursor = 'move';
+                });
+                showNotification('편집 모드로 전환되었습니다', 'info');
+            }
+        }
+        
+        // NPC 추가
+        function addNPC() {
+            const name = document.getElementById('npcName').value.trim();
+            const items = document.getElementById('npcItems').value.trim();
+            const description = document.getElementById('npcDescription').value.trim();
+            const type = document.getElementById('npcType').value;
+            
+            if (!name || !items) {
+                showNotification('NPC 이름과 아이템은 필수입니다!', 'error');
+                return;
+            }
+            
+            const marker = createMarker(name, items, description, type, 50, 50);
+            markers.push(marker);
+            updateMarkerList();
+            updateMarkerCount();
+            
+            // 입력 필드 초기화
+            document.getElementById('npcName').value = '';
+            document.getElementById('npcItems').value = '';
+            document.getElementById('npcDescription').value = '';
+            document.getElementById('npcType').value = 'merchant';
+            
+            showNotification(`${name} NPC가 추가되었습니다!`);
+        }
+        
+        // 나머지 JavaScript 함수들은 이전과 동일하되, 
+        // showNotification 함수를 사용하여 사용자 피드백 개선
+        
+        // 프로젝트 저장
+        function saveProject() {
+            const projectData = {
+                version: '1.0',
+                mapImage: document.getElementById('mapImage').src,
+                markers: markers.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    items: m.items,
+                    description: m.description,
+                    type: m.type,
+                    x: m.x,
+                    y: m.y
+                }))
+            };
+            
+            const blob = new Blob([JSON.stringify(projectData, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'game-map-project.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('프로젝트가 저장되었습니다!');
+        }
+        
+        // 프로젝트 불러오기
+        function loadProject() {
+            document.getElementById('projectLoader').click();
+        }
+        
+        document.getElementById('projectLoader').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const projectData = JSON.parse(e.target.result);
+                        
+                        // 기존 마커 삭제
+                        clearAll(false);
+                        
+                        // 맵 이미지 로드
+                        document.getElementById('mapImage').src = projectData.mapImage;
+                        
+                        // 마커 복원
+                        projectData.markers.forEach(data => {
+                            const marker = createMarker(data.name, data.items, data.description, data.type, data.x, data.y);
+                            markers.push(marker);
+                        });
+                        
+                        updateMarkerList();
+                        updateMarkerCount();
+                        showNotification('프로젝트가 불러와졌습니다!');
+                        
+                    } catch (error) {
+                        showNotification('프로젝트 파일을 읽을 수 없습니다!', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+        
+        // 여기에 나머지 함수들 추가 (createMarker, handleMarkerMouseDown 등)
+        // 이전 아티팩트의 함수들과 동일하되 UI 개선사항 적용
+        
+        // 초기화
+        updateMarkerCount();
+        
+        // 마커 생성 함수 (이전과 동일하지만 타입 추가)
+        function createMarker(name, items, description, type, x, y) {
+            const mapContainer = document.getElementById('mapContainer');
+            const markerElement = document.createElement('div');
+            markerElement.className = 'npc-marker';
+            markerElement.style.left = x + '%';
+            markerElement.style.top = y + '%';
+            
+            // 타입별 이모지
+            const typeEmojis = {
+                merchant: '🛒',
+                quest: '❗',
+                trainer: '⚔️',
+                guard: '🛡️',
+                other: '👤'
+            };
+            
+            markerElement.innerHTML = typeEmojis[type] || '👤';
+            
+            // 라벨 추가
+            const label = document.createElement('div');
+            label.className = 'marker-label';
+            label.textContent = name;
+            markerElement.appendChild(label);
+            
+            const marker = {
+                id: Date.now() + Math.random(),
+                name: name,
+                items: items,
+                description: description,
+                type: type,
+                x: x,
+                y: y,
+                element: markerElement
+            };
+            
+            // 이벤트 리스너 추가
+            markerElement.addEventListener('mousedown', (e) => handleMarkerMouseDown(e, marker));
+            markerElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentMode === 'edit') {
+                    selectMarker(marker);
+                } else {
+                    showTooltip(e, marker);
+                }
+            });
+            
+            mapContainer.appendChild(markerElement);
+            document.getElementById('emptyState').style.display = 'none';
+            return marker;
+        }
+        
+        // 마커 드래그 시작
+        function handleMarkerMouseDown(e, marker) {
+            if (currentMode !== 'edit') return;
+            
+            e.preventDefault();
+            draggedMarker = marker;
+            selectMarker(marker);
+            
+            const rect = document.getElementById('mapContainer').getBoundingClientRect();
+            const markerRect = marker.element.getBoundingClientRect();
+            
+            dragOffset.x = e.clientX - markerRect.left - markerRect.width / 2;
+            dragOffset.y = e.clientY - markerRect.top - markerRect.height / 2;
+            
+            marker.element.classList.add('dragging');
+            
+            document.addEventListener('mousemove', handleMarkerDrag);
+            document.addEventListener('mouseup', handleMarkerMouseUp);
+        }
+        
+        // 마커 드래그 중
+        function handleMarkerDrag(e) {
+            if (!draggedMarker) return;
+            
+            const mapContainer = document.getElementById('mapContainer');
+            const rect = mapContainer.getBoundingClientRect();
+            
+            let x = ((e.clientX - dragOffset.x - rect.left) / rect.width) * 100;
+            let y = ((e.clientY - dragOffset.y - rect.top) / rect.height) * 100;
+            
+            // 경계 체크
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
+            
+            draggedMarker.x = x;
+            draggedMarker.y = y;
+            draggedMarker.element.style.left = x + '%';
+            draggedMarker.element.style.top = y + '%';
+        }
+        
+        // 마커 드래그 끝
+        function handleMarkerMouseUp() {
+            if (draggedMarker) {
+                draggedMarker.element.classList.remove('dragging');
+                draggedMarker = null;
+            }
+            
+            document.removeEventListener('mousemove', handleMarkerDrag);
+            document.removeEventListener('mouseup', handleMarkerMouseUp);
+        }
+        
+        // 마커 선택
+        function selectMarker(marker) {
+            if (selectedMarker) {
+                selectedMarker.element.classList.remove('selected');
+            }
+            
+            selectedMarker = marker;
+            marker.element.classList.add('selected');
+            updateMarkerList();
+        }
+        
+        // 마커 목록 업데이트
+        function updateMarkerList() {
+            const listContainer = document.getElementById('markerList');
+            const emptyState = document.getElementById('emptyMarkerList');
+            
+            if (markers.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            listContainer.innerHTML = '';
+            
+            markers.forEach(marker => {
+                const item = document.createElement('div');
+                item.className = 'marker-item';
+                if (selectedMarker && selectedMarker.id === marker.id) {
+                    item.classList.add('selected');
+                }
+                
+                const typeEmojis = {
+                    merchant: '🛒',
+                    quest: '❗',
+                    trainer: '⚔️',
+                    guard: '🛡️',
+                    other: '👤'
+                };
+                
+                item.innerHTML = `
+                    <div class="marker-info">
+                        <div class="marker-name">${typeEmojis[marker.type]} ${marker.name}</div>
+                        <div class="marker-items">${marker.items}</div>
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteMarker(${marker.id})">🗑️</button>
+                `;
+                
+                item.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'BUTTON') {
+                        selectMarker(marker);
+                        marker.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+                
+                listContainer.appendChild(item);
+            });
+        }
+        
+        // 마커 삭제
+        function deleteMarker(markerId) {
+            const markerIndex = markers.findIndex(m => m.id === markerId);
+            if (markerIndex !== -1) {
+                const marker = markers[markerIndex];
+                marker.element.remove();
+                markers.splice(markerIndex, 1);
+                
+                if (selectedMarker && selectedMarker.id === markerId) {
+                    selectedMarker = null;
+                }
+                
+                updateMarkerList();
+                updateMarkerCount();
+                showNotification('NPC가 삭제되었습니다');
+            }
+        }
+        
+        // 선택된 마커 삭제
+        function deleteSelected() {
+            if (selectedMarker) {
+                deleteMarker(selectedMarker.id);
+            } else {
+                showNotification('삭제할 마커를 선택해주세요', 'error');
+            }
+        }
+        
+        // 전체 삭제
+        function clearAll(showConfirm = true) {
+            if (showConfirm && !confirm('모든 마커를 삭제하시겠습니까?')) {
+                return;
+            }
+            
+            markers.forEach(marker => marker.element.remove());
+            markers = [];
+            selectedMarker = null;
+            updateMarkerList();
+            updateMarkerCount();
+            
+            if (showConfirm) {
+                showNotification('모든 마커가 삭제되었습니다');
+            }
+        }
+        
+        // HTML 코드 생성
+        function exportCode() {
+            const mapImageSrc = document.getElementById('mapImage').src;
+            
+            let markersHtml = '';
+            markers.forEach(marker => {
+                markersHtml += `        <div class="npc-marker" style="left: ${marker.x.toFixed(1)}%; top: ${marker.y.toFixed(1)}%;" 
+             data-npc="${marker.name}" 
+             data-items="${marker.items}" 
+             data-description="${marker.description}"
+             data-type="${marker.type}"></div>\n`;
+            });
+            
+            const fullHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>게임 마을맵</title>
+    <style>
+        .map-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+        }
+        
+        .map-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .npc-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #ff4444;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 10;
+            animation: pulse 2s infinite;
+        }
+        
+        .npc-marker:hover {
+            background: #ff6666;
+            transform: scale(1.2);
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); }
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-width: 250px;
+            white-space: normal;
+        }
+        
+        .search-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .search-input {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 300px;
+            max-width: 90%;
+        }
+        
+        .search-results {
+            margin-top: 10px;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .result-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+        }
+        
+        .result-item:hover {
+            background: #e5e5e5;
+        }
+        
+        .highlighted {
+            animation: highlight 2s;
+        }
+        
+        @keyframes highlight {
+            0%, 100% { background: #ff4444; transform: scale(1); }
+            50% { background: #ff6666; transform: scale(1.5); }
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" class="search-input" placeholder="NPC 이름이나 아이템을 검색하세요..." id="searchInput">
+        <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <div class="map-container">
+        <img src="${mapImageSrc}" alt="게임 마을맵" class="map-image">
+        
+        <!-- NPC 마커들 -->
+${markersHtml}    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // NPC 데이터
+        const npcData = [];
+        document.querySelectorAll('.npc-marker').forEach(marker => {
+            npcData.push({
+                element: marker,
+                name: marker.dataset.npc,
+                items: marker.dataset.items.split(','),
+                description: marker.dataset.description,
+                type: marker.dataset.type
+            });
+        });
+
+        // 툴팁 기능
+        const tooltip = document.getElementById('tooltip');
+        
+        document.querySelectorAll('.npc-marker').forEach(marker => {
+            marker.addEventListener('mouseenter', function(e) {
+                const npcName = this.dataset.npc;
+                const items = this.dataset.items.split(',');
+                const description = this.dataset.description;
+                const type = this.dataset.type;
+                
+                const typeNames = {
+                    merchant: '상인',
+                    quest: '퀘스트 제공자',
+                    trainer: '훈련사',
+                    guard: '경비병',
+                    other: '기타'
+                };
+                
+                tooltip.innerHTML = \`
+                    <strong>\${npcName}</strong> (\${typeNames[type] || '기타'})<br>
+                    <em>\${description}</em><br><br>
+                    <strong>판매/제공 아이템:</strong><br>
+                    \${items.map(item => \`• \${item.trim()}\`).join('<br>')}
+                \`;
+                
+                tooltip.style.opacity = '1';
+            });
+            
+            marker.addEventListener('mouseleave', function() {
+                tooltip.style.opacity = '0';
+            });
+            
+            marker.addEventListener('mousemove', function(e) {
+                const rect = document.querySelector('.map-container').getBoundingClientRect();
+                tooltip.style.left = (e.clientX - rect.left + 10) + 'px';
+                tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+            });
+        });
+
+        // 검색 기능
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            searchResults.innerHTML = '';
+            
+            if (query === '') return;
+            
+            const results = [];
+            npcData.forEach(npc => {
+                if (npc.name.toLowerCase().includes(query)) {
+                    results.push({
+                        type: 'npc',
+                        text: \`NPC: \${npc.name}\`,
+                        element: npc.element,
+                        description: npc.description
+                    });
+                }
+                
+                npc.items.forEach(item => {
+                    if (item.toLowerCase().includes(query)) {
+                        results.push({
+                            type: 'item',
+                            text: \`\${item.trim()} - \${npc.name}에서 판매\`,
+                            element: npc.element,
+                            description: \`\${npc.name}: \${npc.description}\`
+                        });
+                    }
+                });
+            });
+            
+            results.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result-item';
+                resultDiv.innerHTML = \`
+                    <strong>\${result.text}</strong><br>
+                    <small>\${result.description}</small>
+                \`;
+                
+                resultDiv.addEventListener('click', function() {
+                    result.element.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                    
+                    result.element.classList.add('highlighted');
+                    setTimeout(() => {
+                        result.element.classList.remove('highlighted');
+                    }, 2000);
+                });
+                
+                searchResults.appendChild(resultDiv);
+            });
+            
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="result-item">검색 결과가 없습니다.</div>';
+            }
+        });
+    </script>
+</body>
+</html>`;
+            
+            document.getElementById('codeOutput').textContent = fullHtml;
+            document.getElementById('exportArea').style.display = 'block';
+            showNotification('HTML 코드가 생성되었습니다!');
+        }
+        
+        // Wiki.js 형식으로 내보내기
+        function exportWikiJS() {
+            const mapImageSrc = document.getElementById('mapImage').src;
+            
+            let markersData = markers.map(marker => {
+                return {
+                    name: marker.name,
+                    type: marker.type,
+                    items: marker.items,
+                    description: marker.description,
+                    x: marker.x.toFixed(1),
+                    y: marker.y.toFixed(1)
+                };
+            });
+            
+            const wikiCode = `# 게임 마을맵
+
+## 마커 위치 정보
+\`\`\`json
+${JSON.stringify(markersData, null, 2)}
+\`\`\`
+
+## 인터랙티브 맵
+<div class="game-map-container">
+  <!-- 여기에 HTML 코드 삽입 -->
+</div>
+
+## NPC 목록
+${markers.map(marker => {
+    const typeNames = {
+        merchant: '🛒 상인',
+        quest: '❗ 퀘스트 제공자',
+        trainer: '⚔️ 훈련사',
+        guard: '🛡️ 경비병',
+        other: '👤 기타'
+    };
+    
+    return `### ${typeNames[marker.type]} ${marker.name}
+- **위치**: (${marker.x.toFixed(1)}%, ${marker.y.toFixed(1)}%)
+- **판매/제공 아이템**: ${marker.items}
+- **설명**: ${marker.description}`;
+}).join('\n\n')}`;
+            
+            document.getElementById('codeOutput').textContent = wikiCode;
+            document.getElementById('exportArea').style.display = 'block';
+            showNotification('Wiki.js 형식 코드가 생성되었습니다!');
+        }
+        
+        // JSON 내보내기
+        function exportJSON() {
+            const data = {
+                mapImage: document.getElementById('mapImage').src,
+                markers: markers.map(m => ({
+                    name: m.name,
+                    type: m.type,
+                    items: m.items,
+                    description: m.description,
+                    x: m.x,
+                    y: m.y
+                }))
+            };
+            
+            document.getElementById('codeOutput').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('exportArea').style.display = 'block';
+            showNotification('JSON 데이터가 생성되었습니다!');
+        }
+        
+        // 클립보드 복사
+        function copyToClipboard() {
+            const codeOutput = document.getElementById('codeOutput');
+            navigator.clipboard.writeText(codeOutput.textContent).then(() => {
+                showNotification('클립보드에 복사되었습니다!');
+            }).catch(() => {
+                showNotification('복사에 실패했습니다', 'error');
+            });
+        }
+        
+        // 툴팁 표시 (미리보기 모드용)
+        function showTooltip(e, marker) {
+            const tooltip = document.createElement('div');
+            tooltip.style.cssText = `
+                position: absolute;
+                background: #333;
+                color: white;
+                padding: 10px;
+                border-radius: 5px;
+                z-index: 1000;
+                pointer-events: none;
+                left: ${e.pageX + 10}px;
+                top: ${e.pageY - 10}px;
+                max-width: 250px;
+                font-size: 12px;
+            `;
+            
+            const typeNames = {
+                merchant: '🛒 상인',
+                quest: '❗ 퀘스트 제공자',
+                trainer: '⚔️ 훈련사',
+                guard: '🛡️ 경비병',
+                other: '👤 기타'
+            };
+            
+            tooltip.innerHTML = `
+                <strong>${marker.name}</strong> (${typeNames[marker.type]})<br>
+                <em>${marker.description}</em><br><br>
+                <strong>판매/제공 아이템:</strong><br>
+                ${marker.items.split(',').map(item => `• ${item.trim()}`).join('<br>')}
+            `;
+            
+            document.body.appendChild(tooltip);
+            
+            setTimeout(() => {
+                if (tooltip.parentNode) {
+                    tooltip.parentNode.removeChild(tooltip);
+                }
+            }, 3000);
+        }
+        
+        // 맵 컨테이너 클릭으로 새 마커 추가
+        document.getElementById('mapContainer').addEventListener('click', function(e) {
+            if (currentMode === 'edit' && e.target === this) {
+                const rect = this.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                
+                const name = prompt('NPC 이름을 입력하세요:');
+                if (name) {
+                    const items = prompt('판매/제공 아이템을 입력하세요 (쉼표로 구분):');
+                    if (items) {
+                        const description = prompt('설명을 입력하세요:') || '';
+                        const type = prompt('타입을 입력하세요 (merchant/quest/trainer/guard/other):') || 'other';
+                        
+                        const marker = createMarker(name, items, description, type, x, y);
+                        markers.push(marker);
+                        updateMarkerList();
+                        updateMarkerCount();
+                        showNotification(`${name} NPC가 추가되었습니다!`);
+                    }
+                }
+            }
+        });
